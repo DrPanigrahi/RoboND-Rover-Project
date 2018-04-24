@@ -1,3 +1,5 @@
+# Modified by: Dr. Smruti Panigrahi
+
 # Do the necessary imports
 import argparse
 import shutil
@@ -35,12 +37,20 @@ ground_truth = mpimg.imread('../calibration_images/map_bw.png')
 # map output looks green in the display image
 ground_truth_3d = np.dstack((ground_truth*0, ground_truth*255, ground_truth*0)).astype(np.float)
 
+
 # Define RoverState() class to retain rover state parameters
 class RoverState():
     def __init__(self):
+        self.dt = 2 #seconds
         self.start_time = None # To record the start time of navigation
         self.total_time = None # To record total duration of naviagation
+        self.et_time = 0
+        self.stuck_dist = 1e-5  #  distance in meters to decide whther the rover is stuck.
+        self.home_dist = 10  #  distance in meters from home position.
+        self.mapped = 0 #Percentage mapped
         self.img = None # Current camera image
+        self.last_pos = None # last position (x, y)
+        self.home_pos = None # Current position (x, y)
         self.pos = None # Current position (x, y)
         self.yaw = None # Current yaw angle
         self.pitch = None # Current pitch angle
@@ -59,16 +69,12 @@ class RoverState():
         # of navigable terrain pixels.  This is a very crude form of knowing
         # when you can keep going and when you should stop.  Feel free to
         # get creative in adding new fields or modifying these!
-        self.stop_forward = 50 # Threshold to initiate stopping
+        self.stop_forward = 100 # Threshold to initiate stopping
         self.go_forward = 500 # Threshold to go forward again
         self.max_vel = 2 # Maximum velocity (meters/second)
-        # Image output from perception step
-        # Update this image to display your intermediate analysis steps
-        # on screen in autonomous mode
+        # Image output from perception step: Update this image to display intermediate analysis steps
         self.vision_image = np.zeros((160, 320, 3), dtype=np.float) 
-        # Worldmap
-        # Update this image with the positions of navigable terrain
-        # obstacles and rock samples
+        # Worldmap: Update this image with the positions of navigable terrain/obstacles/rock-samples
         self.worldmap = np.zeros((200, 200, 3), dtype=np.float) 
         self.samples_pos = None # To store the actual sample positions
         self.samples_to_find = 0 # To store the initial count of samples
@@ -77,6 +83,20 @@ class RoverState():
         self.near_sample = 0 # Will be set to telemetry value data["near_sample"]
         self.picking_up = 0 # Will be set to telemetry value data["picking_up"]
         self.send_pickup = False # Set to True to trigger rock pickup
+        self.total_samples = 6 #Total samples
+        self.rock_pos = None # Current position (x, y)
+        self.wall_offset_angle = 0 #Add this offset to the mean_nav_angles
+        self.pitch_min = 0.5
+        self.pitch_max = 359.5
+        self.roll_min = 0.5
+        self.roll_max = 359.5
+        self.timestamp = 0
+        self.stuck_counter = 0
+        self.donut_counter = 0
+        self.pickup_counter = 0
+        self.fps = 0
+        
+    
 # Initialize our rover 
 Rover = RoverState()
 
@@ -97,6 +117,7 @@ def telemetry(sid, data):
     # Do a rough calculation of frames per second (FPS)
     if (time.time() - second_counter) > 1:
         fps = frame_counter
+        Rover.fps = fps
         frame_counter = 0
         second_counter = time.time()
     print("Current FPS: {}".format(fps))
@@ -116,6 +137,7 @@ def telemetry(sid, data):
             out_image_string1, out_image_string2 = create_output_images(Rover)
 
             # The action step!  Send commands to the rover!
+            
  
             # Don't send both of these, they both trigger the simulator
             # to send back new telemetry so we must only send one

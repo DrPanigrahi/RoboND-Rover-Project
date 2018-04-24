@@ -1,3 +1,5 @@
+# Modified by: Dr. Smruti Panigrahi
+
 import numpy as np
 import cv2
 from PIL import Image
@@ -31,6 +33,8 @@ def update_rover(Rover, data):
       print(data.keys())
       # The current speed of the rover in m/s
       Rover.vel = convert_to_float(data["speed"])
+      # The last known position of the Rover
+      Rover.last_pos = Rover.pos
       # The current position of the rover
       Rover.pos = [convert_to_float(pos.strip()) for pos in data["position"].split(';')]
       # The current yaw angle of the rover
@@ -86,7 +90,12 @@ def create_output_images(Rover):
       plotmap = plotmap.clip(0, 255)
       # Overlay obstacle and navigable terrain map with ground truth map
       map_add = cv2.addWeighted(plotmap, 1, Rover.ground_truth, 0.5, 0)
-
+    
+      # Let's track the rover and add it to the map as a 4x4 square grid
+      rover_size = 2  
+      map_add[int(np.ceil(Rover.pos[1]))-rover_size:int(np.ceil(Rover.pos[1]))+rover_size,\
+                        int(np.ceil(Rover.pos[0]))-rover_size:int(np.ceil(Rover.pos[0]))+rover_size, :] = 255
+    
       # Check whether any rock detections are present in worldmap
       rock_world_pos = Rover.worldmap[:,:,1].nonzero()
       # If there are, we'll step through the known sample positions
@@ -119,6 +128,7 @@ def create_output_images(Rover):
       tot_map_pix = np.float(len((Rover.ground_truth[:,:,1].nonzero()[0])))
       # Calculate the percentage of ground truth map that has been successfully found
       perc_mapped = round(100*good_nav_pix/tot_map_pix, 1)
+      Rover.mapped = perc_mapped
       # Calculate the number of good map pixel detections divided by total pixels 
       # found to be navigable terrain
       if tot_nav_pix > 0:
@@ -139,6 +149,10 @@ def create_output_images(Rover):
       cv2.putText(map_add,"  Located: "+str(samples_located), (0, 70), 
                   cv2.FONT_HERSHEY_COMPLEX, 0.4, (255, 255, 255), 1)
       cv2.putText(map_add,"  Collected: "+str(Rover.samples_collected), (0, 85), 
+                  cv2.FONT_HERSHEY_COMPLEX, 0.4, (255, 255, 255), 1)
+      cv2.putText(map_add,"fps: "+str(Rover.fps), (0, 180), 
+                  cv2.FONT_HERSHEY_COMPLEX, 0.4, (255, 255, 255), 1)
+      cv2.putText(map_add,"Status: "+str(Rover.mode), (0, 195), 
                   cv2.FONT_HERSHEY_COMPLEX, 0.4, (255, 255, 255), 1)
       # Convert map and vision image to base64 strings for sending to server
       pil_img = Image.fromarray(map_add.astype(np.uint8))
