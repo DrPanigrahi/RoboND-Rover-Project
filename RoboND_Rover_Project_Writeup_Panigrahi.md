@@ -5,14 +5,16 @@
 [image3]: ./calibration_images/example_rock1.jpg 
 [image4]: ./output/perspective_transform.jpg 
 [image5]: ./output/polar_coordinate.jpg 
-[image6]: ./output/autonomous_data/Rover_Forward_Mode.png 
-[image7]: ./output/autonomous_data/Rover_Stop_Mode.png 
-[image8]: ./output/autonomous_data/Rover_Pursuit_Mode.png 
-[image9]: ./output/autonomous_data/Rover_Stuck_Mode_Burried_in_Sand.png 
-[image10]: ./output/autonomous_data/Rover_Stuck_Mode_Hit_Obstacles.png 
-[image11]: ./output/autonomous_data/Rover_Collecting_Rock_Samples.png
-[image12]: ./output/autonomous_data/Rover_All_Rocks_Collected_Mapped63p.png 
-[image13]: ./output/autonomous_data/Rover_All_Rocks_Collected_Mapped95p.png
+[image6]: ./output/img2polar.png 
+[image7]: ./output/rover2world.png 
+[image8]: ./output/autonomous_data/Rover_Forward_Mode.png 
+[image9]: ./output/autonomous_data/Rover_Stop_Mode.png 
+[image10]: ./output/autonomous_data/Rover_Pursuit_Mode.png 
+[image11]: ./output/autonomous_data/Rover_Stuck_Mode_Burried_in_Sand.png 
+[image12]: ./output/autonomous_data/Rover_Stuck_Mode_Hit_Obstacles.png 
+[image13]: ./output/autonomous_data/Rover_Collecting_Rock_Samples.png
+[image14]: ./output/autonomous_data/Rover_All_Rocks_Collected_Mapped63p.png 
+[image15]: ./output/autonomous_data/Rover_All_Rocks_Collected_Mapped95p.png
 
 
 # Project: Search and Sample Return 
@@ -20,6 +22,8 @@
 This project is modeled after the [NASA sample return challenge](https://www.nasa.gov/directorates/spacetech/centennial_challenges/sample_return_robot/index.html) and it provides first hand experience with the three essential elements of robotics, which are perception, decision making and actuation.  We will carry out this project in a simulator environment built with the Unity game engine. 
 
 ![alt text][image1] 
+
+I have outlined the detailed steps taken for perception and decision making process for the autonomous navigation.  I went for the standout submission and collect all the rock samples and map about 97% of the map at fidelity above 80% at around 20fps camera feed. 
 
 **The goals / steps of this project are the following:**  
 
@@ -82,7 +86,15 @@ We then convert the rover centric cordinate to polar coordinate to get distance 
 
 ![alt text][image5]
 
-After all the transformations, we then map the rover centric images onto the worldmap. Doing this resulted in poor fidelity of the map.  To increase the fidelity we limit the reliable vision of the rover to a radius of about 6 meters.  This helped improve the fidelity dramatically. We then move all of these functionalities to the perception function of the Aautonomous navigation stack as discussed below.
+After all the transformations, we then map the rover centric images onto the worldmap. An example of the transfomrations from original image to the rover-centric polar coordinate frame is shown below. 
+
+![alt text][image6]
+
+Then a rotation and translation coordinate transformation is performed to bring the rover-centric image to the worldmap (shown below) assuming the position (x, y) and orientation (yaw) of the rover w.r.t. to the world coordinate system is known.
+
+![alt text][image7]
+
+Doing this resulted in poor fidelity of the map.  To increase the fidelity we limit the reliable vision of the rover to a radius of about 6 meters.  This helped improve the fidelity dramatically. We then move all of these functionalities to the perception function of the Aautonomous navigation stack as discussed below.
 
 
 
@@ -219,225 +231,15 @@ def mean_nav_angle(Rover):
     return np.clip( (np.mean(Rover.nav_angles) + Rover.wall_offset_angle) * 180/np.pi, -15, 15)
 ```
 
-The new modes, help my robot to get un-stuck, naviagate towards a rock sample, and go home when all rock samples have been collected and robot has mapped more than 50% of the map. In addidtion to the `forward` and `stop` mode I have added the following modes: `pursuit`, `stuck`, `donut`, `gohome`.
+The new modes, help my robot to get un-stuck, naviagate towards a rock sample, and go home when all rock samples have been collected and robot has mapped more than 50% of the map. In addidtion to the `forward` and `stop` mode I have added the following modes: `pursuit`, `stuck`, `donut`, `gohome`.  The decission tree for all the decissions made by the Rover can be found in the `decission.py` script. 
 
-Below is the decission tree for all the decissions made by the Rover:
-```python
-
-def decision_step(Rover):
-
-    # Implement conditionals to decide what to do given perception data
-    # Here you're all set up with some basic functionality but you'll need to
-    # improve on this decision tree to do a good job of navigating autonomously!
-
-    # offset in rad used to hug the left wall 15s after the start time to avoid donut mode
-    if Rover.total_time < 15:
-        Rover.wall_offset_angle = 0 #-0.65 * np.std(Rover.nav_angles)
-    else:
-        Rover.wall_offset_angle = 0.75 * np.std(Rover.nav_angles)
-    
-    
-    if Rover.total_time == 0:
-        Rover.home_pos = Rover.pos
-        print("Rover Home Position (x, y): ", Rover.home_pos)
-            
-    if Rover.nav_angles is not None:
-        # Check for Rover.mode status
-         
-        # If all samples has been collected and more than 90% mapped then go home           
-        if is_near_home(Rover) and Rover.total_time > 30:
-            print("Rover is close to Home!")
-            #Rover.mode = 'gohome'
-        
-        if Rover.samples_collected == Rover.total_samples:
-            if Rover.mapped >= 50:
-                Rover.mode = 'gohome'
-            else:
-                Rover.mode = 'forward'
- 
-        if (Rover.throttle >= Rover.throttle_set and np.abs(Rover.vel) <= 0.01 and not Rover.picking_up):
-            Rover.stuck_counter += 1
-            print("Stuck counter: ", Rover.stuck_counter)
-                
-            if (Rover.stuck_counter >= 2*Rover.fps):
-                print("Rover is still stuck! Try turning in the opposite direction")
-                Rover.steer = -15
-                Rover.brake = 0
-                Rover.throttle = 0 #5*Rover.throttle_set
-                Rover.mode = 'stuck'
-                Rover.stuck_counter = 0
-            else:
-                Rover.mode = 'forward'
-
-        elif (Rover.throttle == Rover.throttle_set and Rover.steer == 15 and Rover.vel > 0.5):
-            Rover.donut_counter += 1
-            if (Rover.donut_counter >= 5*Rover.fps):
-                print("Rover eating donut!")
-                print("Donut counter: ", Rover.donut_counter)
-                Rover.throttle = 0
-                Rover.brake = 0 
-                Rover.steer = -15
-                Rover.mode = 'donut'
-                            
-        elif Rover.picking_up == 1:
-            Rover.throttle = 0
-            Rover.steer = 0
-            Rover.brake = Rover.brake_set
-            Rover.mode = 'stop'
-            Rover.samples_collected += 1
-
-        elif Rover.near_sample == 1:
-            Rover.throttle = 0
-            Rover.steer = 0
-            Rover.brake = Rover.brake_set
-            Rover.mode = 'stop'
-          
-        elif Rover.mode == 'pursuit':
-            print("Pickup counter: ", Rover.pickup_counter)
-            if Rover.pickup_counter <= 100:
-                Rover.wall_offset_angle = 0;
-                print("Rover Picking up Rock..........")
-                Rover.steer = mean_nav_angle(Rover)
-                Rover.brake = 0
-                Rover.throttle = 0
-                if Rover.vel <= 0.2:
-                    Rover.throttle = Rover.throttle_set
-                else:
-                    Rover.throttle = 0
-                Rover.samples_located += 1
-                Rover.mode == 'stop'
-            else:
-                Rover.steer = mean_nav_angle(Rover)
-                Rover.brake = 0
-                Rover.throttle = 0
-                Rover.mode = 'forward'
-                Rover.pickup_counter = 0
-
-        
-        elif Rover.mode == 'forward':            
-            # Check the extent of navigable terrain
-            if len(Rover.nav_angles) >= Rover.stop_forward:
-                # Rover.brake = 0
-                # If mode is forward, navigable terrain looks good
-                # and velocity is below max, then throttle
-                if Rover.vel < Rover.max_vel:
-                    # Set throttle value to throttle setting
-                    Rover.throttle = Rover.throttle_set
-                    Rover.brake = 0
-                elif Rover.vel > Rover.max_vel:
-                    Rover.throttle = 0
-                    Rover.brake = 0.2*Rover.brake_set
-                else:  # Else coast
-                    Rover.throttle = 0
-                    Rover.brake = 0
-                # Set steering to average angle clipped to the range +/- 15
-                Rover.steer = mean_nav_angle(Rover)
-                    
-            # If there's a lack of navigable terrain pixels then go to 'stop' mode
-            elif len(Rover.nav_angles) < Rover.stop_forward:
-                # Set mode to "stop" and hit the brakes!
-                Rover.throttle = 0
-                # Set brake to stored brake value
-                Rover.brake = 5*Rover.brake_set
-                Rover.steer = 0
-                Rover.mode = 'stop'
-
-        # If we're already in "stop" mode then make different decisions
-        elif Rover.mode == 'stop':
-            # If we're in stop mode but still moving keep braking
-            if Rover.vel > 0.2:
-                Rover.throttle = 0
-                Rover.brake = 5*Rover.brake_set
-                Rover.steer = 0
-            # If we're not moving (vel < 0.2) then do something else
-            elif Rover.vel <= 0.2:
-                # Now we're stopped and we have vision data to see if there's a path forward
-                if len(Rover.nav_angles) < Rover.go_forward:
-                    Rover.throttle = 0
-                    # Release the brake to allow turning
-                    Rover.brake = 0
-                    # Turn range is +/- 15 degrees, when stopped the next line will induce 4-wheel turning
-                    Rover.steer = -15
-                # If we're stopped but see sufficient navigable terrain in front then go!
-                elif len(Rover.nav_angles) >= Rover.go_forward:
-                    # Set throttle back to stored value
-                    Rover.throttle = Rover.throttle_set
-                    # Release the brake
-                    Rover.brake = 0
-                    # Set steer to mean angle
-                    Rover.steer = mean_nav_angle(Rover)
-                    Rover.mode = 'forward'
-                    
-        elif Rover.mode == 'stuck': 
-            if (Rover.throttle == 0 and Rover.brake == 0 and Rover.steer != 0): #spinning in place
-                print("Rover is spinning in place")
-                Rover.throttle = 0
-                Rover.brake = Rover.brake_set
-                Rover.steer = 0
-                Rover.mode = 'forward'
-
-            elif (Rover.throttle >= Rover.throttle_set and Rover.vel <= 0.5):
-                print("Rover is still stuck")
-                Rover.steer = -15
-                Rover.throttle = 5*Rover.throttle_set
-                Rover.brake = 0
-                Rover.mode = 'stop'
-
-            elif Rover.vel < -0.2: #if rover moving backwards go to stop mode
-                Rover.throttle = 0
-                Rover.brake = Rover.brake_set
-                Rover.steer = -15
-                print("Rover out of stuck mode and going to stop mode")
-                Rover.mode = 'stop'
-            else:
-                Rover.stuck_counter = 0
-                Rover.throttle = 0
-                Rover.brake = Rover.brake_set
-                Rover.steer = -15
-                Rover.mode = 'stop'
-                
-        elif Rover.mode == 'donut':
-            Rover.throttle = 0
-            Rover.brake = 0 #Rover.brake_set
-            Rover.wall_offset_angle *= -2
-            Rover.steer = mean_nav_angle(Rover)
-            if (Rover.donut_counter >= 5*Rover.fps + 5): # Wait for 6 frames to turn Rover by 90deg
-                Rover.donut_counter = 0
-                Rover.mode = 'stop'
-            else:
-                Rover.mode = 'forward'
-            
-        elif Rover.mode == 'gohome':
-            if is_near_home(Rover):
-                Rover.throttle = 0
-                Rover.brake = Rover.brake_set
-                Rover.steer = 0
-                print("Rover is home")
-            else:
-                Rover.mode = 'forward'
-
-    # Just to make the rover do something even if no modifications have been made to the code
-    else:
-        Rover.throttle = Rover.throttle_set
-        Rover.steer = 0
-        Rover.brake = 0
-    
-    
-    # If in a state where want to pickup a rock send pickup command
-    if Rover.near_sample and Rover.vel == 0 and not Rover.picking_up:
-        Rover.send_pickup = True
-        
-        
-    return Rover
-
-```
 Getting unstuck is very challenging. In my case, I let the Rover steer with full throtle whenever it thinks it's stuck. If the the Throttle is non-zero, the velocity is near zero and the Rover is not picking up samples, then we get into stuck mode. In stuck mode we check if the Rover is in spinning mode. If it is in spinning mode we bring it back to forward mode. When in stuck mode, the rover applies full-throttle while steering. If not in spinning mode, then it checks if the velocity is negative, and applies break, turns by -15 degrees and goes to stop mode. While in forward mode, we check if the rover might not be moving. 
 
-The I have noticed that, the areas around the huge black rocks/obstacles (not the golden rock samples!) around (x,y) = (148, 108) is extremely difficult to navigate. At some locations around that area it is impossible to get un-stuck even in manual mode. This is due to the fact that the wheels of the rover get burried in the sand and no amount of steering or throttle seem to help get the Rover unstuck. In this situation, I just close the roversim and reopen for a new test run.  
+I have noticed that, the areas around the huge black rocks/obstacles (not the golden rock samples!) around (x,y) = (148, 108) is extremely difficult to navigate. At some locations around that area it is impossible to get un-stuck even in manual mode. This is due to the fact that the wheels of the rover get burried in the sand and no amount of steering or throttle seem to help get the Rover unstuck. In this situation, I just close the roversim and reopen for a new test run.  
 
 I have used various counters to keep track of how long the Rover is in particular mode to make decissions on when to get out of `stuck` mode, `donut` mode, and `pursuit` mode.  These counters are compared agaist constant values based on the fps.
 
-At this stage, I am able to naviagte most of the terrain, collect all rocks and map more than 97% of the map at fidelity around 80% at around 20fps. Also the fidelity increases to around 85% when the simulation runs on a better machine at 40fps. 
+At this stage, I am able to naviagte most of the terrain, collect all rocks and map more than 95% of the map at fidelity above 80% at around 20fps camera feed.  The fidelity increased to around 85% when the simulation runs on a better machine at 40fps. 
 
 ### 3. Visualization
 For better visualization, I have added the `fps` and `status` of the rover to the bottom right map. When the rover goes back to the previously mapped areas, it was imposible to know where the Rover is in the map. So, I added a white square same as the rocks to track the Rover's position in realtime. This really helps a lot to understand where the Rover is at any particular time. I have added these functionalities to the `create_output_images` function in `supporting_functions.py`. To clean-up the code, I have moved all the transpformation functions used in `perception.py` into a separate python file `transformation.py`.
@@ -461,28 +263,28 @@ def create_output_images(Rover):
 The results here show the Rover in various modes. Performing a screen recording of the RoverSim, the resulting video files were around 500MB after the completion of each run. I will only show some screen shots of the Rover at various modes.
 
 The Forward Mode:
-![alt text][image6]
-
-The Stop Mode:
-![alt text][image7]
-
-The Pursuit Mode:
 ![alt text][image8]
 
-The Stuck Mode (Burried in Sand):
+The Stop Mode:
 ![alt text][image9]
 
-The Stuck Mode (Hitting Obstacle):
+The Pursuit Mode:
 ![alt text][image10]
 
-Rover Collecting Rock Sample:
+The Stuck Mode (Burried in Sand):
 ![alt text][image11]
 
-Rover collected all 6 samples while mapped 63% of the map:
+The Stuck Mode (Hitting Obstacle):
 ![alt text][image12]
 
-Rover collected all 6 samples while mapped 95% of the map:
+Rover Collecting Rock Sample:
 ![alt text][image13]
+
+Rover collected all 6 samples while mapped 63% of the map:
+![alt text][image14]
+
+Rover collected all 6 samples while mapped 95% of the map:
+![alt text][image15]
 
 
 ### Wish Lists for Improvements
