@@ -289,14 +289,16 @@ Rover collected all 6 samples while mapped 95% of the map:
 
 ### Wish Lists for Improvements
 There are so many things that I would like to implement but don't have time to do so.  Here are my wish lists:
-1. Create a speed dependednt brake setting for a smoother drive.
-2. Not visit the areas mapped previously (Giving lower weights to the pixles visited and steer in the direction of highly weihted pixels).
-3. Better un-stuck mechanism incorporating `reverse` mode.
-4. Find the least possible distance the Rover needs to travel in order to go home.
-5. Better decission making to avoid hitting the rocks (perhapse by making another color thresholding specific to obstacls other than the mountains, i.e. Big and Small black rocks on the way).
-6. Compute total distance travelled based on velocity.
-7. Adjust throttle and brake based on computed acceleration from velocity.
-8. Increase map fidelity to above 90%.
+1. Better algorithm for detecting and avoiding obstacles
+2. Create a speed dependednt brake setting for a smoother drive.
+3. Not visit the areas mapped previously (Giving lower weights to the pixles visited and steer in the direction of highly weihted pixels).
+4. Better un-stuck mechanism incorporating `reverse` mode.
+5. Find the least possible distance the Rover needs to travel in order to go home.
+6. Better decission making to avoid hitting the rocks (perhapse by making another color thresholding specific to obstacls other than the mountains, i.e. Big and Small black rocks on the way).
+7. Compute total distance travelled based on velocity.
+8. Adjust throttle and brake based on computed acceleration from velocity.
+9. Increase map fidelity to above 90%.
+10. Localization without global position information.
 
 ### Simulator Settings
 I ran the simulator in an Ubuntu at screen resolution 1024x768 and graphics quality 'Good'. The frames-per-second (FPS) varried a lot from 8fps (when the computer is over loaded!) to 25fps. For above 18fps the fidelity of the map was around 80% and about 78% fidelity for 8fps. But running on a Macbook Pro 13" with core i5 and 8GB RAM, the simulator ran much faster at 40fps, which in turn also helped improving the fidelity of the map to around 85%.  
